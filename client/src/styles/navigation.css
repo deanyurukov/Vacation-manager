@@ -1,0 +1,24 @@
+nav {
+    background: var(--primary-color);
+    padding: 0.7rem 0;
+
+    ul {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 6rem;
+
+        a {
+            color: #fff;
+            font-size: 1.1rem;
+
+            &:hover {
+                text-decoration: underline;
+            }
+        }
+
+        img {
+            width: 10rem;
+        }
+    }
+}
