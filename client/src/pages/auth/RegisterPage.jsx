@@ -9,17 +9,17 @@ const RegisterPage = () => {
                 <form id="register-form" className="form">
                     <div>
                         <span>
-                            <input type="text" name="firstName" placeholder={`First Name*`} />
+                            <input type="text" name="firstName" placeholder={`First Name*`} required />
                         </span>
                         <span>
-                            <input type="text" name="lastName" placeholder={`Last Name*`} />
+                            <input type="text" name="lastName" placeholder={`Last Name*`} required />
                         </span>
                     </div>
                     <span>
-                        <input type="text" name="username" placeholder={`Username*`} />
+                        <input type="text" name="username" placeholder={`Username*`} required />
                     </span>
                     <span>
-                        <input type="email" name="email" placeholder={`Email*`} />
+                        <input type="email" name="email" placeholder={`Email*`} required />
                     </span>
                     <PasswordInput name={"password"} placeholder={`Password*`} />
 

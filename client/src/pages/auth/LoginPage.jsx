@@ -8,7 +8,7 @@ const LoginPage = () => {
             <div className="form-wrapper">
                 <form id="login-form" className="form">
                     <span>
-                        <input type="email" name="email" placeholder={"Email*"} />
+                        <input type="email" name="email" placeholder={"Email*"} required />
                     </span>
                     <PasswordInput name={"password"} placeholder={`Password*`} />
 

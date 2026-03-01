@@ -7,6 +7,7 @@ import MainLayout from './layouts/MainLayout.jsx';
 import UsersPage from './pages/UsersPage.jsx';
 import LoginPage from './pages/auth/LoginPage.jsx';
 import RegisterPage from './pages/auth/RegisterPage.jsx';
+import RolesPage from './pages/RolesPage.jsx';
 
 const router = createBrowserRouter(
     createRoutesFromElements(
@@ -14,6 +15,7 @@ const router = createBrowserRouter(
             <Route index element={<UsersPage />} />
             <Route path='/login' element={<LoginPage />} />
             <Route path='/register' element={<RegisterPage />} />
+            <Route path='/roles' element={<RolesPage />} />
         </Route>
     )
 );
