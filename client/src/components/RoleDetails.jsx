@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
-const RoleDetails = ({ role, users, setRoles, editRole }) => {
+const RoleDetails = ({ role, users, setRoles, setUsers, editRole }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const [filteredUsers] = useState(users.filter((user) => user.role === role));
+    const filteredUsers = useMemo(() => users.filter((user) => user.role === role), [users, role]);
 
     const toggleOpen = () => {
         setIsOpen(!isOpen);
@@ -11,6 +11,7 @@ const RoleDetails = ({ role, users, setRoles, editRole }) => {
     const handleDelete = () => {
         if (confirm(`Are you sure you want to delete the role "${role}"?`)) {
             setRoles(prevRoles => prevRoles.filter(r => r !== role));
+            setUsers?.((prevUsers) => prevUsers.map((u) => (u.role === role ? { ...u, role: "Unassigned" } : u)));
         }
     };
 

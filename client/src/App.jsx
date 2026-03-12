@@ -8,6 +8,9 @@ import UsersPage from './pages/UsersPage.jsx';
 import LoginPage from './pages/auth/LoginPage.jsx';
 import RegisterPage from './pages/auth/RegisterPage.jsx';
 import RolesPage from './pages/RolesPage.jsx';
+import TeamsPage from './pages/TeamsPage.jsx';
+import ProjectsPage from './pages/ProjectsPage.jsx';
+import HolidaysPage from './pages/HolidaysPage.jsx';
 
 const router = createBrowserRouter(
     createRoutesFromElements(
@@ -16,6 +19,9 @@ const router = createBrowserRouter(
             <Route path='/login' element={<LoginPage />} />
             <Route path='/register' element={<RegisterPage />} />
             <Route path='/roles' element={<RolesPage />} />
+            <Route path='/teams' element={<TeamsPage />} />
+            <Route path='/projects' element={<ProjectsPage />} />
+            <Route path='/holidays' element={<HolidaysPage />} />
         </Route>
     )
 );

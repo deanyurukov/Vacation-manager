@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import RoleDetails from "../components/RoleDetails";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -14,7 +14,6 @@ const RolesPage = () => {
         { name: "Frank Miller", role: "Unassigned" },
         { name: "Grace Lee", role: "Developer" },
     ]);
-    const [selectedRole, setSelectedRole] = useState("all");
     const [isAddingRole, setIsAddingRole] = useState(false);
     const [overlayOpen, setOverlayOpen] = useState(false);
     const [roleToEdit, setRoleToEdit] = useState(null);
@@ -22,8 +21,13 @@ const RolesPage = () => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
 
+    const selectedRole = useMemo(() => {
+        const roleFromQuery = searchParams.get("role");
+        if (roleFromQuery && roles.includes(roleFromQuery)) return roleFromQuery;
+        return "all";
+    }, [searchParams, roles]);
+
     function handleRoleChange(e) {
-        setSelectedRole(e.target.value);
         if (e.target.value === "all") {
             navigate("");
             return;
@@ -43,6 +47,10 @@ const RolesPage = () => {
             alert("Role name cannot be empty!");
             return;
         }
+
+        setRoles(prev => [...prev, newRole]);
+        setIsAddingRole(false);
+        e.target.parentElement.parentElement.querySelector("input").value = "";
     }
 
     function editRole(oldRole) {
@@ -68,13 +76,6 @@ const RolesPage = () => {
         setOverlayOpen(false);
         setRoleToEdit(null);
     }
-
-    useEffect(() => {
-        const roleFromQuery = searchParams.get("role");
-        if (roleFromQuery && roles.includes(roleFromQuery)) {
-            setSelectedRole(roleFromQuery);
-        }
-    }, [searchParams, roles]);
 
     return (
         <div id="roles">
@@ -103,7 +104,7 @@ const RolesPage = () => {
                     <button onClick={() => setIsAddingRole(true)}>Add role +</button>
                 )}
 
-                <select onChangeCapture={(e) => handleRoleChange(e)} name="roles" value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)}>
+                <select name="roles" value={selectedRole} onChange={(e) => handleRoleChange(e)}>
                     <option value="all">
                         All
                     </option>
@@ -118,7 +119,7 @@ const RolesPage = () => {
             <section className="roles">
                 {roles.map((role, index) => (
                     (selectedRole === "all" || selectedRole === role) &&
-                    <RoleDetails key={index} role={role} users={users} setRoles={setRoles} editRole={editRole} />
+                    <RoleDetails key={index} role={role} users={users} setRoles={setRoles} setUsers={setUsers} editRole={editRole} />
                 ))}
             </section>
         </div>
