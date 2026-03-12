@@ -11,6 +11,7 @@ import RolesPage from './pages/RolesPage.jsx';
 import TeamsPage from './pages/TeamsPage.jsx';
 import ProjectsPage from './pages/ProjectsPage.jsx';
 import HolidaysPage from './pages/HolidaysPage.jsx';
+import NotFoundPage from './pages/NotFoundPage.jsx';
 
 const router = createBrowserRouter(
     createRoutesFromElements(
@@ -22,6 +23,7 @@ const router = createBrowserRouter(
             <Route path='/teams' element={<TeamsPage />} />
             <Route path='/projects' element={<ProjectsPage />} />
             <Route path='/holidays' element={<HolidaysPage />} />
+            <Route path='*' element={<NotFoundPage />} />
         </Route>
     )
 );
