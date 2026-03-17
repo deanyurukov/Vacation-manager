@@ -1,6 +1,6 @@
 import { useContext } from "react";
 import { Navigate, Outlet } from "react-router";
-import { appContext } from "../src/App";
+import { appContext } from "../App";
 
 const UserRoutes = () => {
     const { isLoggedIn } = useContext(appContext);

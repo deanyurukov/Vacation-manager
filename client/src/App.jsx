@@ -13,8 +13,8 @@ import ProjectsPage from './pages/ProjectsPage.jsx';
 import HolidaysPage from './pages/HolidaysPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 
-import GuestRoutes from '../guards/GuestRoutes.jsx';
-import UserRoutes from '../guards/UserRoutes.jsx';
+import GuestRoutes from './guards/GuestRoutes.jsx';
+import UserRoutes from './guards/UserRoutes.jsx';
 import React, { useState } from 'react';
 
 const router = createBrowserRouter(
