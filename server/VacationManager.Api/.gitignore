@@ -1,0 +1,8 @@
+bin/
+obj/
+.vs/
+.idea/
+*.user
+*.suo
+Uploads/sick-notes/*
+!Uploads/sick-notes/.gitkeep

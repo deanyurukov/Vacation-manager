@@ -1,0 +1,58 @@
+@host = http://localhost:5000
+@token = REPLACE_WITH_JWT
+
+### Login
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "ceo",
+  "password": "ChangeMe123!"
+}
+
+### Get users
+GET {{host}}/api/users?page=1&pageSize=10
+Authorization: Bearer {{token}}
+
+### Create project
+POST {{host}}/api/projects
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Internal Portal",
+  "description": "Vacation Manager core platform"
+}
+
+### Create team
+POST {{host}}/api/teams
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Backend Team",
+  "projectId": "PROJECT_ID_HERE"
+}
+
+### Create paid leave request
+POST {{host}}/api/leaveRequests
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="Type"
+
+0
+--boundary
+Content-Disposition: form-data; name="FromDate"
+
+2026-03-20
+--boundary
+Content-Disposition: form-data; name="ToDate"
+
+2026-03-21
+--boundary
+Content-Disposition: form-data; name="IsHalfDay"
+
+false
+--boundary--
