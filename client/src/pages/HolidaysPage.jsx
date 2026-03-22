@@ -1,57 +1,29 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { apiBlob, apiJson, apiRequest, parseError } from "../api/client.js";
+import { endpoints } from "../api/endpoints.js";
+import { useAuth } from "../hooks/useAuth.js";
+
+const LEAVE_TYPES = ["Paid", "Unpaid", "Sick"];
+const LEAVE_STATUS = ["Pending", "Approved", "Rejected"];
+
+function leaveTypeLabel(t) {
+    if (typeof t === "string") return t;
+    return LEAVE_TYPES[t] ?? String(t);
+}
+
+function leaveStatusLabel(s) {
+    if (typeof s === "string") return s;
+    return LEAVE_STATUS[s] ?? String(s);
+}
 
 const HolidaysPage = () => {
-    const [users] = useState([
-        { id: "u1", username: "alice", firstName: "Alice", lastName: "Johnson", role: "CEO", teamId: "t1" },
-        { id: "u2", username: "jane", firstName: "Jane", lastName: "Smith", role: "Team Lead", teamId: "t1" },
-        { id: "u3", username: "john", firstName: "John", lastName: "Doe", role: "Developer", teamId: "t1" },
-        { id: "u4", username: "grace", firstName: "Grace", lastName: "Lee", role: "Developer", teamId: "t2" },
-    ]);
+    const { user } = useAuth();
 
-    const [teams] = useState([
-        { id: "t1", name: "Core", teamLeadUserId: "u2" },
-        { id: "t2", name: "Payments", teamLeadUserId: null },
-    ]);
-
-    const [currentUserId, setCurrentUserId] = useState("u3");
-
-    const [requests, setRequests] = useState([
-        {
-            id: "r1",
-            type: "Paid",
-            from: "2026-03-20",
-            to: "2026-03-22",
-            createdAt: "2026-03-10",
-            halfDay: false,
-            approved: false,
-            requesterId: "u3",
-            attachment: null,
-        },
-        {
-            id: "r2",
-            type: "Sick",
-            from: "2026-03-01",
-            to: "2026-03-01",
-            createdAt: "2026-03-01",
-            halfDay: false,
-            approved: true,
-            requesterId: "u4",
-            attachment: { name: "sick-note.txt", content: "Doctor note placeholder." },
-        },
-        {
-            id: "r3",
-            type: "Unpaid",
-            from: "2026-03-25",
-            to: "2026-03-25",
-            createdAt: "2026-03-11",
-            halfDay: true,
-            approved: false,
-            requesterId: "u4",
-            attachment: null,
-        },
-    ]);
+    const [requests, setRequests] = useState([]);
+    const [totalCount, setTotalCount] = useState(0);
 
     const [filterCreatedAfter, setFilterCreatedAfter] = useState("");
+    const [mineOnly, setMineOnly] = useState(true);
     const [pageSize, setPageSize] = useState(10);
     const [page, setPage] = useState(1);
 
@@ -60,84 +32,132 @@ const HolidaysPage = () => {
     const [overlayOpen, setOverlayOpen] = useState(false);
     const [requestToEditId, setRequestToEditId] = useState(null);
 
-    const currentUser = useMemo(() => users.find((u) => u.id === currentUserId) || users[0], [users, currentUserId]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
 
-    function userName(userId) {
-        const u = users.find((x) => x.id === userId);
-        return u ? `${u.firstName} ${u.lastName}` : "Unknown";
-    }
+    const canFilterAll = user?.roleName === "CEO" || user?.roleName === "TeamLead";
 
-    function isAfter(dateStr, afterStr) {
-        if (!afterStr) return true;
-        return new Date(dateStr).getTime() >= new Date(afterStr).getTime();
-    }
+    const loadRequests = useCallback(async () => {
+        if (!user) {
+            setLoading(false);
+            return;
+        }
+        setLoading(true);
+        setError("");
+        try {
+            const params = {
+                page,
+                pageSize,
+                mineOnly,
+            };
+            if (filterCreatedAfter) {
+                const d = new Date(`${filterCreatedAfter}T00:00:00.000Z`);
+                params.createdAfterUtc = d.toISOString();
+            }
+            const res = await apiJson(endpoints.leaveRequests.list(params));
+            setRequests(res.items || []);
+            setTotalCount(res.totalCount ?? 0);
+        } catch (e) {
+            setError(e.message);
+            setRequests([]);
+            setTotalCount(0);
+        } finally {
+            setLoading(false);
+        }
+    }, [user, page, pageSize, filterCreatedAfter, mineOnly]);
 
-    const filteredRequests = useMemo(() => {
-        return requests
-            .filter((r) => isAfter(r.createdAt, filterCreatedAfter))
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    }, [requests, filterCreatedAfter]);
+    useEffect(() => {
+        loadRequests();
+    }, [loadRequests]);
 
-    const totalPages = useMemo(() => Math.max(1, Math.ceil(filteredRequests.length / pageSize)), [filteredRequests.length, pageSize]);
-    const pagedRequests = useMemo(() => {
-        const start = (page - 1) * pageSize;
-        return filteredRequests.slice(start, start + pageSize);
-    }, [filteredRequests, page, pageSize]);
+    const totalPages = useMemo(() => Math.max(1, Math.ceil(totalCount / pageSize)), [totalCount, pageSize]);
 
     const requestToEdit = useMemo(() => requests.find((r) => r.id === requestToEditId) || null, [requests, requestToEditId]);
 
+    function isPending(r) {
+        const s = r.status;
+        return s === 0 || s === "Pending";
+    }
+
+    function isApproved(r) {
+        const s = r.status;
+        return s === 1 || s === "Approved";
+    }
+
     function canEditOrDelete(r) {
-        return r.requesterId === currentUser.id && !r.approved;
+        return r.applicantId === user?.id && isPending(r);
     }
 
     function canApprove(r) {
-        if (r.approved) return false;
-        if (currentUser.role === "CEO") return true;
-        if (currentUser.role !== "Team Lead") return false;
-
-        const requester = users.find((u) => u.id === r.requesterId);
-        if (!requester?.teamId) return false;
-        const team = teams.find((t) => t.id === requester.teamId);
-        return team?.teamLeadUserId === currentUser.id;
+        if (!isPending(r)) return false;
+        return user?.roleName === "CEO" || user?.roleName === "TeamLead";
     }
 
-    function deleteRequest(requestId) {
+    async function deleteRequest(requestId) {
         const r = requests.find((x) => x.id === requestId);
         if (!r) return;
         if (!canEditOrDelete(r)) {
-            alert("You can delete only your own unapproved requests.");
+            alert("You can delete only your own pending requests.");
             return;
         }
         if (!confirm("Delete this request?")) return;
-        setRequests((prev) => prev.filter((x) => x.id !== requestId));
+        try {
+            await apiJson(endpoints.leaveRequests.byId(requestId), { method: "DELETE" });
+            await loadRequests();
+        } catch (e) {
+            alert(e.message);
+        }
     }
 
-    function approveRequest(requestId) {
+    async function approveRequest(requestId) {
         const r = requests.find((x) => x.id === requestId);
         if (!r) return;
         if (!canApprove(r)) {
             alert("You are not allowed to approve this request.");
             return;
         }
-        setRequests((prev) => prev.map((x) => (x.id === requestId ? { ...x, approved: true } : x)));
+        try {
+            await apiJson(endpoints.leaveRequests.review(requestId), {
+                method: "POST",
+                json: { approve: true },
+            });
+            await loadRequests();
+        } catch (e) {
+            alert(e.message);
+        }
+    }
+
+    async function downloadSickNote(id) {
+        try {
+            const blob = await apiBlob(endpoints.leaveRequests.sickNote(id));
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = blobUrl;
+            a.download = `sick-note-${id}`;
+            a.click();
+            URL.revokeObjectURL(blobUrl);
+        } catch (e) {
+            alert(e.message);
+        }
     }
 
     function startEditRequest(r) {
         if (!canEditOrDelete(r)) {
-            alert("You can edit only your own unapproved requests.");
+            alert("You can edit only your own pending requests.");
             return;
         }
         setOverlayOpen(true);
         setRequestToEditId(r.id);
     }
 
-    function saveEditedRequest(e) {
+    async function saveEditedRequest(e) {
         e.preventDefault();
         const form = e.currentTarget;
-        const type = form.type.value;
         const from = form.from.value;
         const to = form.to.value;
-        const halfDay = type === "Sick" ? false : Boolean(form.halfDay?.checked);
+        const halfDay = requestToEdit && leaveTypeLabel(requestToEdit.type) === "Sick"
+            ? false
+            : Boolean(form.halfDay?.checked);
 
         if (!from || !to) {
             alert("Dates cannot be empty!");
@@ -154,32 +174,31 @@ const HolidaysPage = () => {
             return;
         }
 
-        setRequests((prev) =>
-            prev.map((r) =>
-                r.id === requestToEditId
-                    ? {
-                        ...r,
-                        type,
-                        from,
-                        to,
-                        halfDay,
-                    }
-                    : r
-            )
-        );
-        setOverlayOpen(false);
-        setRequestToEditId(null);
+        try {
+            await apiJson(endpoints.leaveRequests.byId(requestToEditId), {
+                method: "PUT",
+                json: {
+                    fromDate: from,
+                    toDate: to,
+                    isHalfDay: halfDay,
+                },
+            });
+            setOverlayOpen(false);
+            setRequestToEditId(null);
+            await loadRequests();
+        } catch (err) {
+            alert(err.message);
+        }
     }
 
-    function createRequest(e) {
+    async function createRequest(e) {
         e.preventDefault();
         const form = e.currentTarget;
 
-        const type = createType;
         const from = form.from.value;
         const to = form.to.value;
-        const halfDay = type === "Sick" ? false : Boolean(form.halfDay?.checked);
-        const attachmentFile = type === "Sick" ? (form.attachment?.files?.[0] || null) : null;
+        const halfDay = createType === "Sick" ? false : Boolean(form.halfDay?.checked);
+        const attachmentFile = createType === "Sick" ? (form.attachment?.files?.[0] || null) : null;
 
         if (!from || !to) {
             alert("Dates cannot be empty!");
@@ -195,36 +214,42 @@ const HolidaysPage = () => {
             alert('"From" date cannot be after "To" date.');
             return;
         }
-        if (type === "Sick" && !attachmentFile) {
+        if (createType === "Sick" && !attachmentFile) {
             alert("Sick leave requires an attached file.");
             return;
         }
 
-        const createdAt = new Date().toISOString().slice(0, 10);
-        const id = `r${Math.random().toString(16).slice(2)}`;
+        const fd = new FormData();
+        fd.append("type", createType);
+        fd.append("fromDate", from);
+        fd.append("toDate", to);
+        fd.append("isHalfDay", halfDay ? "true" : "false");
+        if (attachmentFile) fd.append("sickNoteFile", attachmentFile);
 
-        const attachment = attachmentFile
-            ? { name: attachmentFile.name, content: "Dummy attachment content (no backend)." }
-            : null;
+        try {
+            const res = await apiRequest(endpoints.leaveRequests.list({}), {
+                method: "POST",
+                body: fd,
+            });
+            if (!res.ok) {
+                throw new Error(await parseError(res));
+            }
+            setIsCreating(false);
+            setCreateType("Paid");
+            form.reset();
+            await loadRequests();
+        } catch (err) {
+            alert(err.message);
+        }
+    }
 
-        setRequests((prev) => [
-            {
-                id,
-                type,
-                from,
-                to,
-                createdAt,
-                halfDay,
-                approved: false,
-                requesterId: currentUser.id,
-                attachment,
-            },
-            ...prev,
-        ]);
-
-        setIsCreating(false);
-        setCreateType("Paid");
-        form.reset();
+    if (!user) {
+        return (
+            <div id="holidays">
+                <h1>Holidays</h1>
+                <p>Please log in to view leave requests.</p>
+            </div>
+        );
     }
 
     return (
@@ -234,16 +259,11 @@ const HolidaysPage = () => {
                     <div className="content" onClick={(e) => e.stopPropagation()}>
                         <h3>Editing request</h3>
                         <form onSubmit={saveEditedRequest} className="inline-form">
-                            <select name="type" defaultValue={requestToEdit.type}>
-                                <option value="Paid">Paid</option>
-                                <option value="Unpaid">Unpaid</option>
-                                <option value="Sick">Sick</option>
-                            </select>
-                            <input type="date" name="from" defaultValue={requestToEdit.from} />
-                            <input type="date" name="to" defaultValue={requestToEdit.to} />
-                            {requestToEdit.type !== "Sick" && (
+                            <input type="date" name="from" defaultValue={String(requestToEdit.fromDate).slice(0, 10)} />
+                            <input type="date" name="to" defaultValue={String(requestToEdit.toDate).slice(0, 10)} />
+                            {leaveTypeLabel(requestToEdit.type) !== "Sick" && (
                                 <label className="check">
-                                    <input type="checkbox" name="halfDay" defaultChecked={requestToEdit.halfDay} />
+                                    <input type="checkbox" name="halfDay" defaultChecked={requestToEdit.isHalfDay} />
                                     Half day
                                 </label>
                             )}
@@ -255,18 +275,21 @@ const HolidaysPage = () => {
 
             <h1>Holidays</h1>
 
+            {error ? <p className="error">{error}</p> : null}
+            {loading ? <p>Loading…</p> : null}
+
             <section className="titlebar">
                 <div className="filters">
-                    <label>
-                        Acting as
-                        <select value={currentUserId} onChange={(e) => setCurrentUserId(e.target.value)}>
-                            {users.map((u) => (
-                                <option key={u.id} value={u.id}>
-                                    {u.firstName} {u.lastName} ({u.role})
-                                </option>
-                            ))}
-                        </select>
-                    </label>
+                    {canFilterAll && (
+                        <label>
+                            Only my requests
+                            <input
+                                type="checkbox"
+                                checked={mineOnly}
+                                onChange={(e) => { setMineOnly(e.target.checked); setPage(1); }}
+                            />
+                        </label>
+                    )}
 
                     <label>
                         Created after
@@ -313,7 +336,7 @@ const HolidaysPage = () => {
                         </div>
                     </form>
                 ) : (
-                    <button onClick={() => { setIsCreating(true); setCreateType("Paid"); }}>New request +</button>
+                    <button type="button" onClick={() => { setIsCreating(true); setCreateType("Paid"); }}>New request +</button>
                 )}
             </section>
 
@@ -327,15 +350,18 @@ const HolidaysPage = () => {
                     <span>Status</span>
                     <span>Actions</span>
                 </div>
-                {pagedRequests.map((r) => (
+                {requests.map((r) => (
                     <div key={r.id} className="trow">
-                        <span>{r.type}</span>
-                        <span>{r.from}</span>
-                        <span>{r.to}</span>
-                        <span>{r.createdAt}</span>
-                        <span>{userName(r.requesterId)}</span>
-                        <span className={r.approved ? "ok" : "pending"}>{r.approved ? "Approved" : "Pending"}</span>
+                        <span>{leaveTypeLabel(r.type)}</span>
+                        <span>{String(r.fromDate).slice(0, 10)}</span>
+                        <span>{String(r.toDate).slice(0, 10)}</span>
+                        <span>{String(r.createdAtUtc).slice(0, 10)}</span>
+                        <span>{r.applicantFullName}</span>
+                        <span className={isApproved(r) ? "ok" : "pending"}>{leaveStatusLabel(r.status)}</span>
                         <span className="actions">
+                            {r.hasSickNote && (
+                                <button type="button" onClick={() => downloadSickNote(r.id)}>Sick note</button>
+                            )}
                             {canApprove(r) && (
                                 <button type="button" onClick={() => approveRequest(r.id)}>Approve</button>
                             )}
@@ -350,9 +376,9 @@ const HolidaysPage = () => {
                 ))}
 
                 <div className="pagination">
-                    <button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</button>
+                    <button type="button" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</button>
                     <span>Page {page} / {totalPages}</span>
-                    <button disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</button>
+                    <button type="button" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</button>
                 </div>
             </section>
         </div>

@@ -233,6 +233,35 @@
                         }
                     }
                 }
+
+                .pagination {
+                    display: flex;
+                    justify-content: center;
+                    gap: 1rem;
+                    padding: 1rem;
+                    border-top: 1px solid #e4e4e4;
+                    margin-top: 0.8rem;
+
+                    button {
+                        padding: 0.3rem 0.8rem;
+                        border-radius: 3px;
+                        border: 2px solid #000;
+                        transition: all 0.2s linear;
+                        cursor: pointer;
+                        background: transparent;
+                        font-size: 14px;
+
+                        &:disabled {
+                            opacity: 0.5;
+                            cursor: not-allowed;
+                        }
+
+                        &:hover:not(:disabled) {
+                            border-color: var(--primary-color);
+                            color: var(--primary-color);
+                        }
+                    }
+                }
             }
 
             .details {

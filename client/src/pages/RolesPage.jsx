@@ -1,19 +1,14 @@
-import { useMemo, useState } from "react";
-import RoleDetails from "../components/RoleDetails";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import RoleDetails from "../components/RoleDetails.jsx";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { apiJson } from "../api/client.js";
+import { endpoints } from "../api/endpoints.js";
 
 const RolesPage = () => {
-    const [roles, setRoles] = useState(["CEO", "Team Lead", "Developer", "Unassigned"]);
-    const [users, setUsers] = useState([
-        { name: "John Doe", role: "Developer" },
-        { name: "Jane Smith", role: "Team Lead" },
-        { name: "Alice Johnson", role: "CEO" },
-        { name: "Bob Brown", role: "Unassigned" },
-        { name: "Charlie Davis", role: "Developer" },
-        { name: "Eve Wilson", role: "Team Lead" },
-        { name: "Frank Miller", role: "Unassigned" },
-        { name: "Grace Lee", role: "Developer" },
-    ]);
+    const [roles, setRoles] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+
     const [isAddingRole, setIsAddingRole] = useState(false);
     const [overlayOpen, setOverlayOpen] = useState(false);
     const [roleToEdit, setRoleToEdit] = useState(null);
@@ -21,9 +16,27 @@ const RolesPage = () => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
 
+    const loadRoles = useCallback(async () => {
+        setLoading(true);
+        setError("");
+        try {
+            const res = await apiJson(endpoints.roles.list({ page: 1, pageSize: 100 }));
+            setRoles(res.items || []);
+        } catch (e) {
+            setError(e.message);
+            setRoles([]);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadRoles();
+    }, [loadRoles]);
+
     const selectedRole = useMemo(() => {
         const roleFromQuery = searchParams.get("role");
-        if (roleFromQuery && roles.includes(roleFromQuery)) return roleFromQuery;
+        if (roleFromQuery && roles.some((r) => r.id === roleFromQuery)) return roleFromQuery;
         return "all";
     }, [searchParams, roles]);
 
@@ -35,91 +48,112 @@ const RolesPage = () => {
         navigate(`?role=${e.target.value}`);
     }
 
-    function addRole(e) {
-        const newRole = e.target.parentElement.parentElement.querySelector("input").value.trim();
-
-        if (roles.includes(newRole)) {
-            alert("Role already exists!");
-            return;
-        }
+    async function addRole(e) {
+        const input = e.target.parentElement.parentElement.querySelector("input");
+        const newRole = input.value.trim();
 
         if (!newRole) {
             alert("Role name cannot be empty!");
             return;
         }
 
-        setRoles(prev => [...prev, newRole]);
+        try {
+            await apiJson(endpoints.roles.list({}), {
+                method: "POST",
+                json: { name: newRole },
+            });
+        } catch (err) {
+            alert(err.message);
+            return;
+        }
+
+        input.value = "";
         setIsAddingRole(false);
-        e.target.parentElement.parentElement.querySelector("input").value = "";
+        await loadRoles();
     }
 
-    function editRole(oldRole) {
+    function editRole(roleItem) {
         setOverlayOpen(true);
-        setRoleToEdit(oldRole);
+        setRoleToEdit(roleItem);
     }
 
-    function saveEditedRole(e) {
-        const newRole = e.target.parentElement.querySelector("input").value.trim();
+    async function saveEditedRole(e) {
+        const input = e.target.parentElement.querySelector("input");
+        const newName = input.value.trim();
 
-        if (roles.includes(newRole)) {
-            alert("New name can't be the same as an existing role!");
-            return;
-        }
-
-        if (!newRole) {
+        if (!newName) {
             alert("Role name cannot be empty!");
             return;
         }
 
-        setRoles(prevRoles => prevRoles.map(role => role === roleToEdit ? newRole : role));
-        setUsers(prevUsers => prevUsers.map(user => user.role === roleToEdit ? { ...user, role: newRole } : user));
+        if (!roleToEdit) return;
+
+        try {
+            await apiJson(endpoints.roles.byId(roleToEdit.id), {
+                method: "PUT",
+                json: { name: newName },
+            });
+        } catch (err) {
+            alert(err.message);
+            return;
+        }
+
         setOverlayOpen(false);
         setRoleToEdit(null);
+        await loadRoles();
     }
 
     return (
         <div id="roles">
-            {overlayOpen &&
+            {overlayOpen && roleToEdit && (
                 <div className="overlay" onClick={() => setOverlayOpen(false)}>
                     <div className="content" onClick={(e) => e.stopPropagation()}>
-                        <h3>Editing role "{roleToEdit}"</h3>
-                        <input type="text" placeholder="New role name" defaultValue={roleToEdit} />
-                        <button onClick={(e) => saveEditedRole(e)}>Save</button>
+                        <h3>Editing role &quot;{roleToEdit.name}&quot;</h3>
+                        <input type="text" placeholder="New role name" defaultValue={roleToEdit.name} />
+                        <button type="button" onClick={(e) => saveEditedRole(e)}>Save</button>
                     </div>
                 </div>
-            }
+            )}
 
             <h1>Roles</h1>
+            
+            {loading ? <p>Loading…</p> : null}
 
             <section className="titlebar">
                 {isAddingRole ? (
                     <article>
                         <input type="text" placeholder="Role name" />
                         <div className="controls">
-                            <button onClick={(e) => addRole(e)}>Save</button>
-                            <button onClick={() => setIsAddingRole(false)}>Cancel</button>
+                            <button type="button" onClick={(e) => addRole(e)}>Save</button>
+                            <button type="button" onClick={() => setIsAddingRole(false)}>Cancel</button>
                         </div>
                     </article>
                 ) : (
-                    <button onClick={() => setIsAddingRole(true)}>Add role +</button>
+                    <button type="button" onClick={() => setIsAddingRole(true)}>Add role +</button>
                 )}
 
                 <select name="roles" value={selectedRole} onChange={(e) => handleRoleChange(e)}>
                     <option value="all">
                         All
                     </option>
-                    {roles.map((role, index) => (
-                        <option key={index} value={role}>
-                            {role}
+                    {roles.map((role) => (
+                        <option key={role.id} value={role.id}>
+                            {role.name}
                         </option>
                     ))}
                 </select>
             </section>
 
             <section className="roles">
-                {roles.map((role, index) => (
-                    (selectedRole === "all" || selectedRole === role) &&
-                    <RoleDetails key={index} role={role} users={users} setRoles={setRoles} setUsers={setUsers} editRole={editRole} />
+                {roles.map((role) => (
+                    (selectedRole === "all" || selectedRole === role.id) && (
+                        <RoleDetails
+                            key={role.id}
+                            roleItem={role}
+                            editRole={editRole}
+                            onDeleted={loadRoles}
+                        />
+                    )
                 ))}
             </section>
         </div>
